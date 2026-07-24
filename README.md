@@ -1,16 +1,15 @@
-# Astronomy Observing Planner (Streamlit)
+# Routine Rewards Calendar (Streamlit)
 
-A practical, visual-observing-first planner for selecting the best targets tonight with a **130 mm Orion SpaceProbe 130ST**.
+A phone-friendly daily routine app that turns recurring tasks, meal timing, meals, workouts, habits, and recovery into an easy reference calendar with simple reward points.
 
 ## Features
-- Defaults to **Moriarty, NM** (`34.99, -106.05`, 6200 ft).
-- Session inputs for date, time window, and session type.
-- Curated target list (Messier + selected NGC + planets + double stars).
-- Aggressive filtering to prioritize bright and high-altitude objects.
-- Top ranked targets with practical notes, direction, difficulty, and best time.
-- Eyepiece recommendation with magnification, TFOV, and optional Barlow.
-- Modes: Balanced, Showpiece, Planetary, Deep Sky, Quick Session.
-- “Tonight’s Plan” checklist output.
+- Daily checklist with reward points for each routine item.
+- Progress metrics for earned points, percent complete, streak status, and reward unlocks.
+- Easy reference calendar covering tasks, meals, workouts, habits, and recovery.
+- Meal timing table plus reusable meal idea rotation.
+- Workout-of-the-day recommendation plus weekly workout preview.
+- Optional custom item from the sidebar for one-off tasks.
+- Mobile-friendly Streamlit layout that can be added to a phone home screen.
 
 ## Run locally
 1. Create and activate a virtual environment.
@@ -29,10 +28,10 @@ A practical, visual-observing-first planner for selecting the best targets tonig
 2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in.
 3. Click **New app**, pick your repo/branch, and set main file to `app.py`.
 4. Deploy. Streamlit installs `requirements.txt` automatically.
-5. Open the generated URL on your phone and add it to home screen.
+5. Open the generated URL on your phone and add it to your home screen.
 
-## Notes on ranking behavior
-- Objects below ~25° are rejected.
-- Strong preference for objects above 50° altitude.
-- Dim galaxies are penalized for 130 mm aperture realism.
-- Moon illumination reduces scores for low-contrast deep-sky objects.
+## Notes on rewards
+- Small maintenance items keep momentum visible.
+- Workouts and focused blocks carry larger point values.
+- The daily reward goal is adjustable in the sidebar.
+- Reward status is meant to encourage consistency, not perfection.

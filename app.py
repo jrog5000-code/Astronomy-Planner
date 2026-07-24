@@ -1,103 +1,126 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, time
 
 import pandas as pd
 import streamlit as st
 
-from astronomy_planner.data import DEFAULT_EYEPIECES, DEFAULT_OBJECTS
-from astronomy_planner.engine import recommend_targets
+from astronomy_planner.routine import DEFAULT_ROUTINE, MEAL_IDEAS, WORKOUT_ROTATION, RoutineItem, build_schedule, score_day, week_dates
 
-st.set_page_config(page_title="Astronomy Observing Planner", page_icon="🔭", layout="centered")
+st.set_page_config(page_title="Routine Rewards Calendar", page_icon="✅", layout="centered")
 
-st.title("🔭 Practical Astronomy Observing Planner")
-st.caption("Built for your Orion SpaceProbe 130ST at Moriarty, NM defaults.")
+st.title("✅ Routine Rewards Calendar")
+st.caption("A phone-friendly daily routine hub for tasks, meals, meal timing, workouts, and momentum rewards.")
+
+st.markdown(
+    """
+    <style>
+    div[data-testid="stMetric"] {background: #1118270d; border-radius: 16px; padding: 12px;}
+    .routine-card {border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; margin: 10px 0;}
+    .routine-time {font-size: 0.85rem; color: #6b7280;}
+    .routine-points {font-weight: 700; color: #16a34a;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 with st.sidebar:
-    st.header("Session Inputs")
-    lat = st.number_input("Latitude", value=34.99, format="%.4f")
-    lon = st.number_input("Longitude", value=-106.05, format="%.4f")
-    elevation_ft = st.number_input("Elevation (ft)", value=6200, step=100)
+    st.header("Plan Settings")
+    plan_date = st.date_input("Calendar date", value=date.today())
+    reward_goal = st.slider("Daily reward goal", min_value=40, max_value=150, value=100, step=5)
+    focus = st.selectbox("Today's focus", ["Balanced", "Task heavy", "Meals + prep", "Workout priority", "Recovery day"])
 
-    obs_date = st.date_input("Date", value=date.today())
-    start_t = st.time_input("Start time", value=time(20, 0))
-    end_t = st.time_input("End time", value=time(22, 0))
+    st.subheader("Add a quick custom item")
+    custom_name = st.text_input("Item name", placeholder="e.g., Call Mom")
+    custom_category = st.selectbox("Category", ["Task", "Meal", "Workout", "Habit", "Recovery"])
+    custom_time = st.time_input("Time", value=time(16, 0))
+    custom_minutes = st.number_input("Minutes", min_value=5, max_value=240, value=20, step=5)
+    custom_points = st.number_input("Points", min_value=1, max_value=50, value=10, step=1)
+    add_custom = st.checkbox("Include custom item today")
 
-    session_type = st.selectbox(
-        "Session type",
-        ["Quick 30-minute session", "Standard 1–2 hour session", "Deep session (3+ hours)"],
-        index=1,
-    )
-
-    mode = st.selectbox(
-        "Special mode",
-        ["Balanced", "Showpiece Mode", "Planetary Mode", "Deep Sky Mode", "Quick Session Mode"],
-    )
-
-    top_n = st.slider("Number of targets", min_value=5, max_value=10, value=8)
-
-start_dt = datetime.combine(obs_date, start_t)
-end_dt = datetime.combine(obs_date, end_t)
-if end_dt <= start_dt:
-    end_dt = end_dt + timedelta(days=1)
-
-if st.button("Build Tonight's Plan", type="primary", use_container_width=True):
-    recommendations, moon_illum = recommend_targets(
-        objects=DEFAULT_OBJECTS,
-        lat=lat,
-        lon=lon,
-        elevation_ft=float(elevation_ft),
-        start_dt=start_dt,
-        end_dt=end_dt,
-        session_type=session_type,
-        mode=mode,
-        eyepieces=DEFAULT_EYEPIECES,
-        top_n=top_n,
-    )
-
-    if not recommendations:
-        st.warning("No high-quality targets met your constraints. Extend time window or change mode.")
-        st.stop()
-
-    st.subheader("Tonight's Ranked Targets")
-    st.write(f"Moon illumination: **{moon_illum * 100:.0f}%** (higher values reduce deep-sky contrast).")
-
-    cards = []
-    for idx, rec in enumerate(recommendations, start=1):
-        filter_note = "UHC helpful" if rec.obj.uhc_helpful else "No UHC needed"
-        barlow_note = " + 2x Barlow" if rec.use_barlow else ""
-        cards.append(
-            {
-                "Rank": idx,
-                "Object": rec.obj.name,
-                "Type": rec.obj.object_type,
-                "Constellation": rec.obj.constellation,
-                "Best time": rec.best_time.strftime("%H:%M"),
-                "Max alt": f"{rec.max_altitude:.0f}°",
-                "Direction": rec.direction,
-                "Difficulty": rec.difficulty,
-                "Eyepiece": f"{rec.eyepiece}{barlow_note}",
-                "Magnification": f"{rec.magnification:.0f}x",
-                "TFOV": f"{rec.tfov:.2f}°",
-                "Notes": f"{filter_note}. {rec.reason}",
-            }
+routine = list(DEFAULT_ROUTINE)
+if add_custom and custom_name.strip():
+    routine.append(
+        RoutineItem(
+            custom_name.strip(),
+            custom_category,  # type: ignore[arg-type]
+            custom_time,
+            int(custom_minutes),
+            int(custom_points),
+            "Custom item added from the sidebar.",
         )
+    )
 
-    st.dataframe(pd.DataFrame(cards), use_container_width=True, hide_index=True)
+schedule = build_schedule(plan_date, routine)
 
-    st.subheader("Start Here")
-    st.success(f"Start with **{recommendations[0].obj.name}** for a fast confidence boost.")
+st.subheader("Today at a glance")
+completed_names: list[str] = []
+for entry in schedule:
+    key = f"done-{entry.item.name}-{entry.start_dt.isoformat()}"
+    if st.checkbox(
+        f"{entry.start_dt.strftime('%I:%M %p')} · {entry.item.name} (+{entry.item.points})",
+        key=key,
+    ):
+        completed_names.append(entry.item.name)
 
-    st.subheader("Tonight's Plan Checklist")
-    for idx, rec in enumerate(recommendations, start=1):
-        barlow_note = " +2x Barlow" if rec.use_barlow else ""
-        filter_note = "Use UHC" if rec.obj.uhc_helpful else "No filter needed"
-        st.markdown(
-            f"- [ ] **{idx}. {rec.obj.name}** ({rec.obj.object_type}) at ~{rec.best_time.strftime('%H:%M')}  "
-            f"  \\↳ {rec.eyepiece}{barlow_note}, {rec.magnification:.0f}x, {rec.direction}, max {rec.max_altitude:.0f}°, {filter_note}"
-        )
+completed_points = [entry.item.points for entry in schedule if entry.item.name in completed_names]
+available_points = [entry.item.points for entry in schedule]
+earned, possible, percent, status = score_day(completed_points, available_points)
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Points", f"{earned}/{possible}")
+col2.metric("Progress", f"{percent}%")
+col3.metric("Status", status)
+st.progress(min(earned / reward_goal, 1.0), text=f"{earned} of {reward_goal} points toward today's reward")
+
+if earned >= reward_goal:
+    st.success("Reward unlocked: choose a guilt-free treat, hobby block, or relaxing wind-down.")
+elif earned:
+    st.info(f"{max(reward_goal - earned, 0)} points until your planned reward.")
+else:
+    st.info("Start with the smallest checkbox. Momentum counts.")
+
+st.subheader("Easy reference calendar")
+rows = []
+for entry in schedule:
+    rows.append(
+        {
+            "Time": f"{entry.start_dt.strftime('%I:%M %p')}–{entry.end_dt.strftime('%I:%M %p')}",
+            "Category": entry.item.category,
+            "Plan": entry.item.name,
+            "Reward": f"{entry.item.points} pts · {entry.reward_label}",
+            "Notes": entry.item.notes,
+        }
+    )
+st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+st.subheader("Meal timing and ideas")
+meal_rows = [row for row in rows if row["Category"] == "Meal"]
+st.dataframe(pd.DataFrame(meal_rows), use_container_width=True, hide_index=True)
+st.write("Meal idea rotation:")
+st.write(" · ".join(MEAL_IDEAS))
+
+st.subheader("Workout reference")
+weekday_index = plan_date.weekday()
+st.success(f"Suggested workout today: **{WORKOUT_ROTATION[weekday_index]}**")
+st.write("Weekly rotation:")
+for day, workout in zip(week_dates(plan_date), WORKOUT_ROTATION, strict=False):
+    st.markdown(f"- **{day.strftime('%a, %b %-d')}**: {workout}")
+
+st.subheader("Weekly calendar preview")
+week_rows = []
+for day in week_dates(plan_date):
+    day_schedule = build_schedule(day, routine)
+    week_rows.append(
+        {
+            "Date": day.strftime("%a, %b %-d"),
+            "Tasks": len([entry for entry in day_schedule if entry.item.category == "Task"]),
+            "Meals": ", ".join(entry.start_dt.strftime("%-I:%M %p") for entry in day_schedule if entry.item.category == "Meal"),
+            "Workout": WORKOUT_ROTATION[day.weekday()],
+            "Points available": sum(entry.item.points for entry in day_schedule),
+        }
+    )
+st.dataframe(pd.DataFrame(week_rows), use_container_width=True, hide_index=True)
 
 st.markdown("---")
-st.markdown(
-    "**Practical scope logic:** this planner strongly favors bright, high-altitude, easy-to-find objects that look good in a 130 mm reflector."
-)
+st.caption("Tip: open this Streamlit app on your phone and add it to your home screen for app-like access.")
